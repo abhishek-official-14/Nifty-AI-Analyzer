@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from app.services.ai_prediction import AIPredictionService
 from app.services.data_fetcher import DataFetcher
 from app.services.fii_dii_tracker import FiiDiiTrackerService
 from app.services.fundamental_analysis import FundamentalAnalysisService
@@ -33,6 +34,14 @@ trap_detector_service = OptionTrapDetectorService()
 liquidity_service = LiquidityHeatmapService()
 volume_profile_service = VolumeProfileService()
 gamma_service = GammaExposureService()
+ai_prediction_service = AIPredictionService(
+    fetcher=fetcher,
+    technical_service=tech_service,
+    fundamental_service=fund_service,
+    breadth_service=breadth_service,
+    sector_service=sector_service,
+    option_chain_service=option_chain_service,
+)
 
 
 @router.get("/nifty-overview")
@@ -82,6 +91,13 @@ def stock_analysis(symbol: str) -> dict:
             "note": "Model training intentionally excluded in this backend foundation.",
         },
     }
+
+
+@router.get("/ai-signals")
+def ai_signals(symbols: str | None = None, limit: int = 5) -> dict:
+    """Get AI-powered directional trading signals with composite scoring."""
+    parsed_symbols = [s.strip().upper() for s in symbols.split(",") if s.strip()] if symbols else None
+    return ai_prediction_service.generate_signals(symbols=parsed_symbols, limit=limit)
 
 
 @router.get("/market-breadth")
