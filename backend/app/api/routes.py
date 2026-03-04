@@ -7,10 +7,16 @@ from fastapi import APIRouter, HTTPException
 from app.services.data_fetcher import DataFetcher
 from app.services.fii_dii_tracker import FiiDiiTrackerService
 from app.services.fundamental_analysis import FundamentalAnalysisService
+from app.services.gamma_exposure import GammaExposureService
 from app.services.intraday_volume import IntradayVolumeService
+from app.services.liquidity_heatmap import LiquidityHeatmapService
 from app.services.market_breadth import MarketBreadthService
+from app.services.option_chain_analysis import OptionChainAnalysisService
+from app.services.option_trap_detector import OptionTrapDetectorService
 from app.services.sector_rotation import SectorRotationService
+from app.services.smart_money_tracker import SmartMoneyTrackerService
 from app.services.technical_analysis import TechnicalAnalysisService
+from app.services.volume_profile import VolumeProfileService
 
 router = APIRouter(prefix="/api", tags=["analysis"])
 
@@ -21,6 +27,12 @@ breadth_service = MarketBreadthService()
 sector_service = SectorRotationService(fetcher)
 fii_dii_service = FiiDiiTrackerService(fetcher)
 intraday_service = IntradayVolumeService()
+option_chain_service = OptionChainAnalysisService()
+smart_money_service = SmartMoneyTrackerService()
+trap_detector_service = OptionTrapDetectorService()
+liquidity_service = LiquidityHeatmapService()
+volume_profile_service = VolumeProfileService()
+gamma_service = GammaExposureService()
 
 
 @router.get("/nifty-overview")
@@ -89,3 +101,51 @@ def sector_strength() -> dict:
 def fii_dii() -> dict:
     """Get latest FII/DII activity and flow sentiment."""
     return fii_dii_service.get_flow()
+
+
+@router.get("/options-chain")
+def options_chain() -> dict:
+    """Get NSE option chain intelligence with scoring and structure analytics."""
+    analysis = option_chain_service.get_analysis()
+    smart_money = smart_money_service.detect(analysis)
+    trap_signals = trap_detector_service.detect(analysis, smart_money)
+    volume_profile = volume_profile_service.compute(analysis)
+    gamma_exposure = gamma_service.compute(analysis)
+
+    return {
+        "option_chain_analysis": analysis,
+        "smart_money": smart_money,
+        "option_traps": trap_signals,
+        "volume_profile": volume_profile,
+        "gamma_exposure": gamma_exposure,
+    }
+
+
+@router.get("/smart-money")
+def smart_money() -> dict:
+    """Get smart money regime classification and trap overlays."""
+    analysis = option_chain_service.get_analysis()
+    smart_money_data = smart_money_service.detect(analysis)
+    trap_signals = trap_detector_service.detect(analysis, smart_money_data)
+    gamma_exposure = gamma_service.compute(analysis)
+
+    return {
+        "smart_money": smart_money_data,
+        "option_traps": trap_signals,
+        "gamma_exposure": gamma_exposure,
+    }
+
+
+@router.get("/liquidity-heatmap")
+def liquidity_heatmap() -> dict:
+    """Get strike-wise liquidity heatmap and breakout trap zones."""
+    analysis = option_chain_service.get_analysis()
+    smart_money_data = smart_money_service.detect(analysis)
+    trap_signals = trap_detector_service.detect(analysis, smart_money_data)
+    heatmap = liquidity_service.build(analysis, trap_signals)
+
+    return {
+        "liquidity_heatmap": heatmap,
+        "smart_money": smart_money_data,
+        "option_traps": trap_signals,
+    }
